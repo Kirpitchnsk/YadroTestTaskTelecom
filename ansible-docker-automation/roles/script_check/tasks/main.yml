@@ -1,0 +1,50 @@
+---
+- name: Copy script and Dockerfile to target host
+  copy:
+    src: "{{ item }}"
+    dest: /tmp/
+  loop:
+    - files/python_script.py
+    - ../../Dockerfile
+
+- name: Build Docker image
+  community.docker.docker_image:
+    name: http-checker
+    source: build
+    build:
+      path: /tmp
+      dockerfile: Dockerfile
+    state: present
+
+- name: Run container with script
+  community.docker.docker_container:
+    name: script-checker
+    image: http-checker
+    state: started
+    detach: true
+
+- name: Wait for container to finish
+  community.docker.docker_container_info:
+    name: script-checker
+  register: container_info
+  until: >
+    container_info.container is defined and
+    container_info.container.State is defined and
+    container_info.container.State.Status == 'exited'
+  retries: 10
+  delay: 2
+
+- name: Verify script execution
+  assert:
+    that:
+      - container_info.container.State.ExitCode == 0
+    fail_msg: "Script execution failed in container (exit code: {{ container_info.container.State.ExitCode }})"
+
+- name: Get container logs using command module
+  command: docker logs script-checker
+  register: container_logs
+  changed_when: false
+
+- name: Display logs
+  debug:
+    var: container_logs.stdout_lines

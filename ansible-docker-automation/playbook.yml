@@ -1,0 +1,9 @@
+---
+- name: Install Docker and check scripts
+  hosts: all
+  become: yes
+  gather_facts: yes
+
+  roles:
+    - role: docker_install
+    - role: script_check
